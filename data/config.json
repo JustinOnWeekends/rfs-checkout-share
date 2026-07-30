@@ -1,0 +1,1 @@
+{"method": "ratio", "hourly_wage": 15.0, "understaff_penalty_per_txn": 0.5, "target_utilisation": 0.8, "service_rate": {"MBT": 35.0, "SCO": 22.0, "Kiosk": 18.0, "Express": 40.0, "default": 30.0}}
