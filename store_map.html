@@ -4,45 +4,50 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>RFS · Donegal Store Map</title>
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <style>
   :root{
-    --bg1:#f4f0fb; --bg2:#eef0f7; --bg3:#e7ebf5; --water:#dbe7f5; --land:#e9f1ea; --land2:#dfeee4;
-    --ink:#241d3a; --muted:#6b6580; --line:#e2ddef; --card:rgba(255,255,255,.72);
+    --ink:#241d3a; --muted:#6b6580; --line:#e2ddef; --card:rgba(255,255,255,.82);
     --purple:#6d28d9; --purple2:#a78bfa; --gold:#d97706; --navy:#1e5da8;
-    --spar:#0a8a3d; --spar-dk:#076e30; --sv:#c8102e; --sv-dk:#9d0c24;
+    --spar:#0a8a3d; --sv:#c8102e;
   }
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:var(--ink);overflow:hidden}
-  body{background:radial-gradient(120% 90% at 50% -10%,var(--bg1) 0%,var(--bg2) 55%,var(--bg3) 100%)}
-  #app{position:fixed;inset:0}
-  canvas{display:block;position:absolute;inset:0}
-  header{position:absolute;top:0;left:0;right:0;padding:16px 22px;display:flex;align-items:center;gap:16px;z-index:5;pointer-events:none}
-  header .brand{display:flex;flex-direction:column;pointer-events:auto}
-  header h1{font-family:'Sora';font-size:19px;margin:0;letter-spacing:-.2px}
+  #map{position:fixed;inset:0}
+  #rain{position:fixed;inset:0;pointer-events:none;z-index:2}
+  .maplibregl-ctrl-attrib{font-size:10px;opacity:.7}
+  header{position:fixed;top:0;left:0;right:0;padding:14px 20px;display:flex;align-items:center;gap:14px;z-index:5;pointer-events:none}
+  .brand{pointer-events:auto}
+  header h1{font-family:'Sora';font-size:18px;margin:0;letter-spacing:-.2px}
   header .sub{font-size:12px;color:var(--muted);margin-top:2px}
   .spacer{flex:1}
   .controls{display:flex;gap:8px;pointer-events:auto}
   .btn{font:inherit;font-size:12.5px;font-weight:600;padding:7px 13px;border-radius:999px;border:1px solid var(--line);
-       background:var(--card);color:var(--ink);cursor:pointer;backdrop-filter:blur(6px);transition:.15s}
+       background:var(--card);color:var(--ink);cursor:pointer;backdrop-filter:blur(8px);transition:.15s;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
   .btn:hover{border-color:var(--purple2)}
   .btn.on{background:var(--purple);border-color:var(--purple);color:#fff}
-  .legend{position:absolute;left:22px;bottom:18px;z-index:5;display:flex;gap:14px;flex-wrap:wrap;
-          background:var(--card);border:1px solid var(--line);border-radius:12px;padding:9px 13px;backdrop-filter:blur(6px);font-size:11.5px}
-  .legend b{font-weight:700}
-  .legend .sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
-  .ticker{position:absolute;left:50%;top:16px;transform:translateX(-50%);z-index:5;background:var(--card);border:1px solid var(--line);
-          border-radius:999px;padding:6px 14px;font-size:12px;backdrop-filter:blur(6px);display:flex;align-items:center;gap:8px;max-width:52vw;overflow:hidden;white-space:nowrap}
-  .ticker .dot{width:7px;height:7px;border-radius:50%;background:var(--gold);animation:pulse 1.6s infinite}
+  .ticker{position:fixed;left:50%;top:15px;transform:translateX(-50%);z-index:5;background:var(--card);border:1px solid var(--line);
+          border-radius:999px;padding:6px 14px;font-size:12px;backdrop-filter:blur(8px);display:flex;align-items:center;gap:8px;max-width:46vw;overflow:hidden;white-space:nowrap}
+  .ticker .dot{width:7px;height:7px;border-radius:50%;background:var(--gold);animation:pulse 1.6s infinite;flex:none}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
-  #tooltip{position:absolute;z-index:8;pointer-events:none;background:#fff;border:1px solid var(--line);border-radius:10px;
-           padding:8px 11px;font-size:12px;box-shadow:0 8px 26px rgba(60,40,120,.14);opacity:0;transition:opacity .12s;max-width:230px}
-  #tooltip .t{font-weight:700;font-size:12.5px}
-  #tooltip .m{color:var(--muted);margin-top:2px}
-  /* side panel */
-  #panel{position:absolute;top:0;right:0;height:100%;width:390px;max-width:92vw;z-index:7;transform:translateX(105%);
-         transition:transform .32s cubic-bezier(.4,0,.15,1);background:rgba(255,255,255,.86);backdrop-filter:blur(14px);
-         border-left:1px solid var(--line);box-shadow:-16px 0 44px rgba(60,40,120,.10);overflow-y:auto}
+  .legend{position:fixed;left:20px;bottom:16px;z-index:5;display:flex;gap:14px;flex-wrap:wrap;align-items:center;
+          background:var(--card);border:1px solid var(--line);border-radius:12px;padding:9px 13px;backdrop-filter:blur(8px);font-size:11.5px}
+  .legend .sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+  .foot{position:fixed;right:14px;bottom:14px;z-index:5;font-size:10.5px;color:var(--muted);max-width:290px;text-align:right;
+        background:var(--card);border:1px solid var(--line);border-radius:9px;padding:6px 9px;backdrop-filter:blur(8px)}
+  /* branded store pin */
+  .pin{width:34px;height:34px;border-radius:50% 50% 50% 3px;transform:rotate(45deg);display:grid;place-items:center;
+       box-shadow:0 5px 16px rgba(50,30,90,.30);border:2.5px solid #fff;cursor:pointer;transition:transform .15s}
+  .pin:hover{transform:rotate(45deg) scale(1.12)}
+  .pin span{transform:rotate(-45deg);font-size:13px;font-weight:800;color:#fff;font-family:'Sora'}
+  .pinlab{position:absolute;top:-22px;left:50%;transform:translateX(-50%);background:#fff;border:1px solid var(--line);
+          border-radius:7px;padding:1px 7px;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 3px 10px rgba(50,30,90,.15)}
+  /* side panel (unchanged look) */
+  #panel{position:fixed;top:0;right:0;height:100%;width:390px;max-width:92vw;z-index:7;transform:translateX(105%);
+         transition:transform .32s cubic-bezier(.4,0,.15,1);background:rgba(255,255,255,.9);backdrop-filter:blur(16px);
+         border-left:1px solid var(--line);box-shadow:-16px 0 44px rgba(60,40,120,.12);overflow-y:auto}
   #panel.open{transform:none}
   .p-head{padding:20px 22px 14px;border-bottom:1px solid var(--line);position:relative}
   .p-brandtag{display:inline-block;font-size:11px;font-weight:700;color:#fff;padding:2px 9px;border-radius:6px;letter-spacing:.3px}
@@ -52,218 +57,151 @@
   .p-body{padding:16px 22px 40px}
   .kpis{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
   .kpi{background:#fff;border:1px solid var(--line);border-radius:12px;padding:11px 13px}
-  .kpi .l{font-size:11px;color:var(--muted)}
-  .kpi .v{font-family:'Sora';font-size:20px;margin-top:2px}
+  .kpi .l{font-size:11px;color:var(--muted)} .kpi .v{font-family:'Sora';font-size:20px;margin-top:2px}
   .kpi .v.gold{color:var(--gold)} .kpi .v.navy{color:var(--navy)}
   .sec{font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);margin:18px 0 8px}
   #spark{width:100%;height:120px}
   .rowline{display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px dashed var(--line)}
   .rowline .k{color:var(--muted)}
-  .ev{display:flex;gap:9px;align-items:flex-start;padding:8px 0;border-bottom:1px dashed var(--line)}
+  .ev{display:flex;gap:9px;align-items:center;padding:8px 0;border-bottom:1px dashed var(--line)}
   .ev .ic{width:22px;height:22px;border-radius:6px;flex:none;display:grid;place-items:center;font-size:12px;color:#fff}
-  .ev .nm{font-weight:600;font-size:13px}
-  .ev .dt{font-size:11px;color:var(--muted)}
+  .ev .nm{font-weight:600;font-size:13px} .ev .dt{font-size:11px;color:var(--muted)}
   .ev .ef{margin-left:auto;font-size:12px;font-weight:700}
-  .foot{position:absolute;right:16px;bottom:14px;z-index:5;font-size:10.5px;color:var(--muted);max-width:300px;text-align:right;background:var(--card);
-        border:1px solid var(--line);border-radius:9px;padding:6px 9px;backdrop-filter:blur(6px)}
-  .hint{position:absolute;left:50%;bottom:70px;transform:translateX(-50%);z-index:5;font-size:12px;color:var(--muted)}
 </style>
 </head>
 <body>
-<div id="app">
-  <canvas id="map"></canvas>
-  <header>
-    <div class="brand">
-      <h1>Donegal store network</h1>
-      <div class="sub">RFS Checkout Analytics · live demand, weather & events</div>
-    </div>
-    <div class="spacer"></div>
-    <div class="controls">
-      <button class="btn" id="btn-weather">☔ Rain</button>
-      <button class="btn on" id="btn-events">◎ Events</button>
-    </div>
-  </header>
-  <div class="ticker" id="ticker"><span class="dot"></span><span id="ticker-txt">Loading…</span></div>
-  <div class="legend" id="legend"></div>
-  <div class="hint" id="hint">Click a store to see its forecast and details</div>
-  <div class="foot" id="foot"></div>
-  <div id="tooltip"></div>
-  <aside id="panel"></aside>
-</div>
+<div id="map"></div>
+<canvas id="rain"></canvas>
+<header>
+  <a class="btn" href="./" title="Back to dashboard">← Dashboard</a>
+  <div class="brand">
+    <h1>Donegal store network</h1>
+    <div class="sub">RFS Checkout Analytics · real map · live demand, weather & events</div>
+  </div>
+  <div class="spacer"></div>
+  <div class="controls">
+    <button class="btn" id="btn-weather">☔ Rain</button>
+    <button class="btn on" id="btn-events">◎ Events</button>
+    <button class="btn" id="btn-fit">⤢ Fit county</button>
+  </div>
+</header>
+<div class="ticker"><span class="dot"></span><span id="ticker-txt">Loading…</span></div>
+<div class="legend" id="legend"></div>
+<div class="foot" id="foot"></div>
+<aside id="panel"></aside>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <script>
-const BRAND = {
-  Spar:      {top:'#0a8a3d', left:'#087532', right:'#065e28', label:'SPAR',      tag:'#0a8a3d'},
-  SuperValu: {top:'#e2231a', left:'#c01a13', right:'#9d0c24', label:'SuperValu', tag:'#c8102e'},
-};
-const EVCOL = {holiday:'#d97706', gaa:'#6d28d9', payday:'#1e5da8', event:'#6d28d9'};
-const cv = document.getElementById('map'), ctx = cv.getContext('2d');
-let W,H,DPR=Math.min(2,window.devicePixelRatio||1);
-let stores=[], hover=null, selected=null, rainOn=false, eventsOn=true, t=0;
-let ox=0, oy=0;               // iso origin (screen)
-const ISO_X=62, ISO_Y=31, SPAN=6;   // isometric scale + grid span
+const BRAND={Spar:{c:'#0a8a3d',tag:'#0a8a3d',glyph:'S'},SuperValu:{c:'#c8102e',tag:'#c8102e',glyph:'SV'}};
+const EVCOL={holiday:'#d97706',gaa:'#6d28d9',payday:'#1e5da8',event:'#6d28d9'};
+let stores=[], selected=null, rainOn=false, eventsOn=true, bounds=null;
 
-function resize(){
-  W=window.innerWidth; H=window.innerHeight;
-  cv.width=W*DPR; cv.height=H*DPR; cv.style.width=W+'px'; cv.style.height=H+'px';
-  ctx.setTransform(DPR,0,0,DPR,0,0);
-  ox=W/2; oy=H/2 - 40;
-}
-window.addEventListener('resize',resize);
-
-// grid(gx,gy) + height gz  ->  screen [x,y]
-function iso(gx,gy,gz){ return [ox+(gx-gy)*ISO_X, oy+(gx+gy)*ISO_Y - (gz||0)]; }
-
-function layout(){
-  const lons=stores.map(s=>s.lon), lats=stores.map(s=>s.lat);
-  const lo0=Math.min(...lons), lo1=Math.max(...lons), la0=Math.min(...lats), la1=Math.max(...lats);
-  const nx=v=>(lo1===lo0?0.5:(v-lo0)/(lo1-lo0)), ny=v=>(la1===la0?0.5:(la1-v)/(la1-la0));
-  const mx=Math.max(...stores.map(s=>s.daily_txns)), mn=Math.min(...stores.map(s=>s.daily_txns));
-  stores.forEach(s=>{
-    s.gx = 0.8 + nx(s.lon)*(SPAN-1.6);
-    s.gy = 0.8 + ny(s.lat)*(SPAN-1.6);
-    s.h  = 44 + (mx===mn?40:(s.daily_txns-mn)/(mx-mn))*76;   // building height by volume
-    s.foot = 0.42 + (s.store_type==='Neighbourhood'?0.12:0); // footprint
-  });
-}
-
-function roundedBlob(pts, r){
-  ctx.beginPath();
-  for(let i=0;i<pts.length;i++){
-    const a=pts[i], b=pts[(i+1)%pts.length];
-    const mx=(a[0]+b[0])/2, my=(a[1]+b[1])/2;
-    if(i===0) ctx.moveTo(mx,my); else ctx.quadraticCurveTo(a[0],a[1],mx,my);
-  }
-  ctx.closePath();
-}
-
-function drawGround(){
-  // water backdrop already from CSS; draw the land as a soft isometric blob around the stores
-  const corners=[iso(-0.4,-0.4,0),iso(SPAN+0.4,-0.4,0),iso(SPAN+0.4,SPAN+0.4,0),iso(-0.4,SPAN+0.4,0)];
-  // outer water shelf
-  ctx.save();
-  const g=ctx.createLinearGradient(0,oy-160,0,oy+220);
-  g.addColorStop(0,'#e9f1ea'); g.addColorStop(1,'#dcebe0');
-  roundedBlob(corners,1); ctx.fillStyle=g; ctx.fill();
-  ctx.strokeStyle='rgba(120,150,190,.30)'; ctx.lineWidth=2; ctx.stroke();
-  // subtle iso grid
-  ctx.strokeStyle='rgba(140,120,190,.10)'; ctx.lineWidth=1;
-  for(let i=0;i<=SPAN;i++){
-    let a=iso(i,0,0),b=iso(i,SPAN,0); ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();
-    let c=iso(0,i,0),d=iso(SPAN,i,0); ctx.beginPath();ctx.moveTo(c[0],c[1]);ctx.lineTo(d[0],d[1]);ctx.stroke();
-  }
-  // roads connecting stores
-  ctx.strokeStyle='rgba(150,130,200,.28)'; ctx.lineWidth=3; ctx.setLineDash([2,6]);
-  for(let i=0;i<stores.length;i++)for(let j=i+1;j<stores.length;j++){
-    const a=iso(stores[i].gx,stores[i].gy,0), b=iso(stores[j].gx,stores[j].gy,0);
-    ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();
-  }
-  ctx.setLineDash([]);
-  ctx.restore();
-}
-
-function drawBuilding(s){
-  const f=s.foot, col=BRAND[s.brand]||BRAND.Spar;
-  const p00=iso(s.gx-f,s.gy-f,0), p10=iso(s.gx+f,s.gy-f,0), p11=iso(s.gx+f,s.gy+f,0), p01=iso(s.gx-f,s.gy+f,0);
-  const t00=iso(s.gx-f,s.gy-f,s.h), t10=iso(s.gx+f,s.gy-f,s.h), t11=iso(s.gx+f,s.gy+f,s.h), t01=iso(s.gx-f,s.gy+f,s.h);
-  const isSel=selected===s, isHov=hover===s;
-  // shadow
-  ctx.save(); ctx.globalAlpha=.16; ctx.fillStyle='#3a2b6b';
-  ctx.beginPath();ctx.moveTo(p00[0],p00[1]);ctx.lineTo(p10[0]+14,p10[1]+6);ctx.lineTo(p11[0]+14,p11[1]+6);ctx.lineTo(p01[0],p01[1]);ctx.closePath();ctx.fill();
-  ctx.restore();
-  // event pulse ring
-  if(eventsOn && s._pulse!=null){
-    const base=iso(s.gx,s.gy,0), pr=(t*0.9+s._pulse)%1;
-    ctx.beginPath(); ctx.ellipse(base[0],base[1],(f*ISO_X*2)*(0.4+pr*1.1),(f*ISO_Y*2)*(0.4+pr*1.1),0,0,Math.PI*2);
-    ctx.strokeStyle=EVCOL[s._evtype]||EVCOL.event; ctx.globalAlpha=(1-pr)*0.6; ctx.lineWidth=2; ctx.stroke(); ctx.globalAlpha=1;
-  }
-  const face=(pts,color)=>{ctx.beginPath();ctx.moveTo(pts[0][0],pts[0][1]);for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i][0],pts[i][1]);ctx.closePath();
-    ctx.fillStyle=color;ctx.fill(); if(isSel||isHov){ctx.strokeStyle='rgba(40,20,80,.5)';ctx.lineWidth=1.5;ctx.stroke();}};
-  face([p01,p11,t11,t01], shade(col.right,isHov?1.08:1)); // right
-  face([p10,p11,t11,t10], shade(col.left, isHov?1.08:1)); // left
-  face([t00,t10,t11,t01], shade(col.top,  isHov?1.10:1)); // top
-  // brand label floating above
-  const cap=iso(s.gx,s.gy,s.h+26);
-  ctx.font='700 13px Sora, sans-serif'; ctx.textAlign='center';
-  ctx.fillStyle='#fff'; ctx.strokeStyle=col.tag; ctx.lineWidth=8; ctx.lineJoin='round';
-  roundRectText(cap[0],cap[1],col.label,col.tag);
-  // store the top-face screen bbox for hit testing
-  s._hit=[t00,t10,t11,t01,p10,p01];
-}
-
-function roundRectText(x,y,txt,bg){
-  ctx.font='700 12px Sora, sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
-  const w=ctx.measureText(txt).width+16;
-  ctx.fillStyle=bg; roundRect(x-w/2,y-11,w,22,7); ctx.fill();
-  ctx.fillStyle='#fff'; ctx.fillText(txt,x,y+1);
-}
-function roundRect(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
-function shade(hex,f){const n=parseInt(hex.slice(1),16);let r=(n>>16)*f,g=((n>>8)&255)*f,b=(n&255)*f;
-  return `rgb(${Math.min(255,r|0)},${Math.min(255,g|0)},${Math.min(255,b|0)})`;}
-
-function drawTownLabel(s){
-  const p=iso(s.gx,s.gy+s.foot+0.35,0);
-  ctx.font='600 12px Plus Jakarta Sans, sans-serif'; ctx.textAlign='center'; ctx.textBaseline='top';
-  ctx.fillStyle='rgba(255,255,255,.85)'; roundRect(p[0]-ctx.measureText(s.town).width/2-7,p[1]-2,ctx.measureText(s.town).width+14,18,6);ctx.fill();
-  ctx.fillStyle='#4a4360'; ctx.fillText(s.town,p[0],p[1]);
-}
-
-// rain
-let drops=[];
-function initRain(){drops=[];for(let i=0;i<220;i++)drops.push({x:Math.random()*W,y:Math.random()*H,l:8+Math.random()*12,s:5+Math.random()*6});}
-function drawRain(){
-  ctx.save(); ctx.strokeStyle='rgba(90,130,190,.35)'; ctx.lineWidth=1.1;
-  drops.forEach(d=>{ctx.beginPath();ctx.moveTo(d.x,d.y);ctx.lineTo(d.x-3,d.y+d.l);ctx.stroke();d.y+=d.s;d.x-=1.5;if(d.y>H){d.y=-10;d.x=Math.random()*W;}});
-  ctx.fillStyle='rgba(150,175,210,.06)'; ctx.fillRect(0,0,W,H);
-  ctx.restore();
-}
-
-function frame(){
-  t+=0.006;
-  ctx.clearRect(0,0,W,H);
-  drawGround();
-  const ordered=[...stores].sort((a,b)=>(a.gx+a.gy)-(b.gx+b.gy)); // back to front
-  ordered.forEach(drawTownLabel);
-  ordered.forEach(drawBuilding);
-  if(rainOn) drawRain();
-  requestAnimationFrame(frame);
-}
-
-function pointInPoly(x,y,poly){let c=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){
-  const xi=poly[i][0],yi=poly[i][1],xj=poly[j][0],yj=poly[j][1];
-  if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))c=!c;}return c;}
-
-function pick(mx,my){
-  const ord=[...stores].sort((a,b)=>(b.gx+b.gy)-(a.gx+a.gy)); // front to back
-  for(const s of ord){ if(s._hit && pointInPoly(mx,my,s._hit)) return s; } return null;
-}
-
-cv.addEventListener('mousemove',e=>{
-  hover=pick(e.clientX,e.clientY);
-  cv.style.cursor=hover?'pointer':'default';
-  const tp=document.getElementById('tooltip');
-  if(hover){ tp.style.opacity=1; tp.style.left=(e.clientX+14)+'px'; tp.style.top=(e.clientY+14)+'px';
-    tp.innerHTML=`<div class="t">${hover.brand} · ${hover.store_type}</div>
-      <div class="m">${hover.town} · ${fmt(hover.daily_txns)} txns/day</div>
-      <div class="m">Next 2wk ${fmt(hover.next2w_txns)} · ${hover.busy_days} busy days</div>`;
-  } else tp.style.opacity=0;
+const map=new maplibregl.Map({
+  container:'map',
+  style:'https://tiles.openfreemap.org/styles/positron',   // real OSM, light theme
+  center:[-7.85,54.95], zoom:8.4, pitch:0, bearing:0, attributionControl:false,
+  preserveDrawingBuffer:true,
 });
-cv.addEventListener('click',e=>{const s=pick(e.clientX,e.clientY);if(s)openPanel(s);});
+map.addControl(new maplibregl.AttributionControl({compact:true}),'bottom-right');
+map.addControl(new maplibregl.NavigationControl({showCompass:true}),'bottom-right');
+if(window.ResizeObserver) new ResizeObserver(()=>map.resize()).observe(document.getElementById('map'));
+
+map.on('style.load',()=>{
+  // 3D building extrusions from the OpenMapTiles building layer (light purple)
+  try{
+    map.addLayer({id:'buildings3d',type:'fill-extrusion',source:'openmaptiles','source-layer':'building',minzoom:13.5,
+      paint:{'fill-extrusion-color':['interpolate',['linear'],['zoom'],13.5,'#dcd7ee',17,'#c3b9e6'],
+        'fill-extrusion-height':['case',['has','render_height'],['get','render_height'],8],
+        'fill-extrusion-base':['case',['has','render_min_height'],['get','render_min_height'],0],
+        'fill-extrusion-opacity':.72}});
+  }catch(e){}
+});
 
 const fmt=v=>v==null?'–':d3.format(',')(Math.round(v));
 const pct=v=>v==null?'–':(v>0?'+':'')+v+'%';
 
+// geographic circle polygon (km) for event radius
+function circle(lng,lat,km,n=64){
+  const co=[],dLat=km/110.574,dLng=km/(111.320*Math.cos(lat*Math.PI/180));
+  for(let i=0;i<=n;i++){const a=i/n*2*Math.PI;co.push([lng+dLng*Math.cos(a),lat+dLat*Math.sin(a)]);}
+  return {type:'Feature',geometry:{type:'Polygon',coordinates:[co]}};
+}
+
+fetch('./data/stores.json').then(r=>r.json()).then(d=>{
+  stores=d.stores;
+  document.getElementById('foot').textContent=d.disclaimer;
+  buildLegend(); buildTicker();
+  bounds=new maplibregl.LngLatBounds();
+  stores.forEach(s=>{
+    const b=BRAND[s.brand]||BRAND.Spar;
+    // marker element: label + teardrop pin
+    const wrap=document.createElement('div'); wrap.style.position='relative';
+    const lab=document.createElement('div'); lab.className='pinlab'; lab.textContent=s.town; wrap.appendChild(lab);
+    const pin=document.createElement('div'); pin.className='pin'; pin.style.background=b.c;
+    pin.innerHTML=`<span>${b.glyph}</span>`; wrap.appendChild(pin);
+    pin.addEventListener('click',()=>selectStore(s));
+    s._marker=new maplibregl.Marker({element:wrap,anchor:'bottom'}).setLngLat([s.lon,s.lat]).addTo(map);
+    bounds.extend([s.lon,s.lat]);
+    // event radius (if any upcoming events) — a soft ring around the store
+    if((s.events||[]).length){
+      const et=s.events[0].type, col=EVCOL[et]||EVCOL.event;
+      const src='ring-'+s.key;
+      map.on('load',()=>{ addRing(src,circle(s.lon,s.lat,3.2),col); });
+      if(map.isStyleLoaded()) addRing(src,circle(s.lon,s.lat,3.2),col);
+      s._ring=src; s._ringcol=col;
+    }
+  });
+  fitToStores(true);
+  pulseRings();
+}).catch(err=>{document.getElementById('ticker-txt').textContent='Could not load store data: '+err;});
+
+function fitToStores(instant){
+  if(!bounds||bounds.isEmpty())return;
+  const go=()=>{map.resize();map.fitBounds(bounds,{padding:{top:120,bottom:90,left:90,right:410},maxZoom:10.5,duration:instant?0:1400});};
+  if(map.loaded()) go(); else map.once('load',go);
+}
+
+function addRing(src,geo,col){
+  if(map.getSource(src)) return;
+  map.addSource(src,{type:'geojson',data:geo});
+  map.addLayer({id:src+'-f',type:'fill',source:src,paint:{'fill-color':col,'fill-opacity':.08}});
+  map.addLayer({id:src+'-l',type:'line',source:src,paint:{'line-color':col,'line-width':2,'line-opacity':.6}});
+}
+function pulseRings(){
+  const t=(performance.now()/1000)%2/2; // 0..1 (perf.now allowed in browser)
+  stores.forEach(s=>{ if(s._ring && map.getLayer(s._ring+'-l')){
+    map.setPaintProperty(s._ring+'-l','line-opacity', eventsOn?(0.15+0.5*(1-t)):0);
+    map.setPaintProperty(s._ring+'-f','fill-opacity', eventsOn?(0.03+0.09*(1-t)):0);
+  }});
+  requestAnimationFrame(pulseRings);
+}
+
+function selectStore(s){
+  openPanel(s);
+  map.flyTo({center:[s.lon,s.lat],zoom:15.4,pitch:56,bearing:-18,duration:2400,curve:1.5,essential:true});
+}
+
+function buildLegend(){
+  document.getElementById('legend').innerHTML=
+    `<span><span class="sw" style="background:${BRAND.Spar.c}"></span><b>Spar</b></span>
+     <span><span class="sw" style="background:${BRAND.SuperValu.c}"></span><b>SuperValu</b></span>
+     <span><span class="sw" style="background:${EVCOL.holiday}"></span>Holiday</span>
+     <span><span class="sw" style="background:${EVCOL.gaa}"></span>GAA window</span>
+     <span><span class="sw" style="background:${EVCOL.payday}"></span>Pay window</span>
+     <span style="color:var(--muted)">Real OpenStreetMap · click a store</span>`;
+}
+function buildTicker(){
+  const items=[]; stores.forEach(s=>(s.events||[]).forEach(e=>{ if(e.type==='holiday') items.push(`${s.town}: ${e.name} ${pct(e.effect_pct)}`); }));
+  document.getElementById('ticker-txt').textContent=items.length?('Coming up · '+items.join('   ·   ')):'No public holidays in the current horizon';
+}
+
 function openPanel(s){
-  selected=s; document.getElementById('hint').style.display='none';
-  const col=BRAND[s.brand]||BRAND.Spar;
+  selected=s; const col=BRAND[s.brand]||BRAND.Spar;
   const ev=(s.events||[]).map(e=>{
-    const when=e.date||`${e.start} → ${e.end}`; const c=EVCOL[e.type]||EVCOL.event;
-    const ic={holiday:'★',gaa:'●',payday:'€',event:'◆'}[e.type]||'◆';
+    const when=e.date||`${e.start} → ${e.end}`, c=EVCOL[e.type]||EVCOL.event, ic={holiday:'★',gaa:'●',payday:'€',event:'◆'}[e.type]||'◆';
     return `<div class="ev"><div class="ic" style="background:${c}">${ic}</div>
       <div><div class="nm">${e.name}</div><div class="dt">${when}</div></div>
       <div class="ef" style="color:${c}">${e.effect_pct!=null?pct(e.effect_pct):''}</div></div>`;
-  }).join('') || '<div class="dt" style="color:var(--muted);font-size:12px">No known events in the horizon.</div>';
-
+  }).join('')||'<div class="dt" style="color:var(--muted);font-size:12px">No known events in the horizon.</div>';
   document.getElementById('panel').innerHTML=`
     <div class="p-head">
       <button class="p-close" onclick="closePanel()">×</button>
@@ -294,59 +232,36 @@ function openPanel(s){
   document.getElementById('panel').classList.add('open');
   drawSpark(s);
 }
-function closePanel(){document.getElementById('panel').classList.remove('open');selected=null;}
+function closePanel(){document.getElementById('panel').classList.remove('open');selected=null;map.easeTo({pitch:0,duration:900});}
 
 function drawSpark(s){
-  const R=s.spark.recent, F=s.spark.forecast, LO=s.spark.low, HI=s.spark.high;
+  const R=s.spark.recent,F=s.spark.forecast,LO=s.spark.low,HI=s.spark.high;
   const svg=d3.select('#spark'); svg.selectAll('*').remove();
-  const wd=svg.node().clientWidth||340, ht=120, m={t:8,r:6,b:16,l:6};
-  const n=R.length+F.length;
+  const wd=svg.node().clientWidth||340,ht=120,m={t:8,r:6,b:16,l:6},n=R.length+F.length;
   const x=d3.scaleLinear().domain([0,n-1]).range([m.l,wd-m.r]);
   const all=R.concat(F,LO,HI).filter(v=>v!=null);
-  const y=d3.scaleLinear().domain([d3.min(all)*0.96,d3.max(all)*1.04]).range([ht-m.b,m.t]);
-  const idxF=R.map((_,i)=>i).concat(F.map((_,i)=>R.length+i));
-  // band (forecast)
-  const bandPts=F.map((_,i)=>({i:R.length+i,lo:LO[i],hi:HI[i]}));
-  const area=d3.area().x(d=>x(d.i)).y0(d=>y(d.lo)).y1(d=>y(d.hi)).curve(d3.curveMonotoneX);
-  svg.append('path').datum(bandPts).attr('d',area).attr('fill','#a78bfa').attr('opacity',.28);
-  // recent line
-  const line=d3.line().x((d,i)=>x(i)).y(d=>y(d)).curve(d3.curveMonotoneX);
-  svg.append('path').datum(R).attr('d',line).attr('fill','none').attr('stroke','#46587a').attr('stroke-width',1.6);
-  // forecast line
-  const fl=d3.line().x((d,i)=>x(R.length+i)).y(d=>y(d)).curve(d3.curveMonotoneX);
-  svg.append('path').datum(F).attr('d',fl).attr('fill','none').attr('stroke','#6d28d9').attr('stroke-width',2.2);
-  // divider
-  svg.append('line').attr('x1',x(R.length-0.5)).attr('x2',x(R.length-0.5)).attr('y1',m.t).attr('y2',ht-m.b)
-     .attr('stroke','#241d3a').attr('stroke-opacity',.35).attr('stroke-dasharray','3 3');
-  svg.append('text').attr('x',x(R.length-0.5)+4).attr('y',m.t+9).attr('font-size',9).attr('fill','#6b6580').text('today');
+  const y=d3.scaleLinear().domain([d3.min(all)*.96,d3.max(all)*1.04]).range([ht-m.b,m.t]);
+  const band=F.map((_,i)=>({i:R.length+i,lo:LO[i],hi:HI[i]}));
+  svg.append('path').datum(band).attr('d',d3.area().x(d=>x(d.i)).y0(d=>y(d.lo)).y1(d=>y(d.hi)).curve(d3.curveMonotoneX)).attr('fill','#a78bfa').attr('opacity',.28);
+  svg.append('path').datum(R).attr('d',d3.line().x((d,i)=>x(i)).y(d=>y(d)).curve(d3.curveMonotoneX)).attr('fill','none').attr('stroke','#46587a').attr('stroke-width',1.6);
+  svg.append('path').datum(F).attr('d',d3.line().x((d,i)=>x(R.length+i)).y(d=>y(d)).curve(d3.curveMonotoneX)).attr('fill','none').attr('stroke','#6d28d9').attr('stroke-width',2.2);
+  svg.append('line').attr('x1',x(R.length-.5)).attr('x2',x(R.length-.5)).attr('y1',m.t).attr('y2',ht-m.b).attr('stroke','#241d3a').attr('stroke-opacity',.35).attr('stroke-dasharray','3 3');
+  svg.append('text').attr('x',x(R.length-.5)+4).attr('y',m.t+9).attr('font-size',9).attr('fill','#6b6580').text('today');
 }
 
-function buildLegend(){
-  document.getElementById('legend').innerHTML=
-    `<span><span class="sw" style="background:${BRAND.Spar.top}"></span><b>Spar</b></span>
-     <span><span class="sw" style="background:${BRAND.SuperValu.top}"></span><b>SuperValu</b></span>
-     <span><span class="sw" style="background:${EVCOL.holiday}"></span>Holiday</span>
-     <span><span class="sw" style="background:${EVCOL.gaa}"></span>GAA window</span>
-     <span><span class="sw" style="background:${EVCOL.payday}"></span>Pay window</span>
-     <span style="color:var(--muted)">Building height = daily transactions</span>`;
-}
-function buildTicker(){
-  const items=[];
-  stores.forEach(s=>(s.events||[]).forEach(e=>{ if(e.type==='holiday') items.push(`${s.town}: ${e.name} ${pct(e.effect_pct)}`); }));
-  document.getElementById('ticker-txt').textContent = items.length? ('Coming up · '+items.join('   ·   ')) : 'No public holidays in the current horizon';
-}
+// rain overlay
+const rc=document.getElementById('rain'),rx=rc.getContext('2d');let drops=[],RW,RH;
+function rainResize(){RW=rc.width=window.innerWidth;RH=rc.height=window.innerHeight;}
+window.addEventListener('resize',rainResize);rainResize();
+for(let i=0;i<260;i++)drops.push({x:Math.random()*innerWidth,y:Math.random()*innerHeight,l:9+Math.random()*13,s:6+Math.random()*6});
+function rain(){rx.clearRect(0,0,RW,RH);if(rainOn){rx.strokeStyle='rgba(70,110,180,.32)';rx.lineWidth=1.1;
+  drops.forEach(d=>{rx.beginPath();rx.moveTo(d.x,d.y);rx.lineTo(d.x-3,d.y+d.l);rx.stroke();d.y+=d.s;d.x-=1.6;if(d.y>RH){d.y=-10;d.x=Math.random()*RW;}});
+  rx.fillStyle='rgba(150,175,210,.05)';rx.fillRect(0,0,RW,RH);}requestAnimationFrame(rain);}
+rain();
 
-document.getElementById('btn-weather').onclick=e=>{rainOn=!rainOn;e.target.classList.toggle('on',rainOn);if(rainOn&&!drops.length)initRain();};
+document.getElementById('btn-weather').onclick=e=>{rainOn=!rainOn;e.target.classList.toggle('on',rainOn);};
 document.getElementById('btn-events').onclick=e=>{eventsOn=!eventsOn;e.target.classList.toggle('on',eventsOn);};
-
-fetch('./data/stores.json').then(r=>r.json()).then(d=>{
-  stores=d.stores;
-  stores.forEach((s,i)=>{ const e=(s.events||[])[0]; if(e){s._pulse=i*0.33; s._evtype=e.type;} });
-  document.getElementById('foot').textContent=d.disclaimer;
-  resize(); layout(); initRain(); buildLegend(); buildTicker();
-  window.addEventListener('resize',()=>{resize();layout();});
-  frame();
-}).catch(err=>{document.getElementById('ticker-txt').textContent='Could not load store data: '+err;});
+document.getElementById('btn-fit').onclick=()=>{closePanel();fitToStores(false);};
 </script>
 </body>
 </html>
