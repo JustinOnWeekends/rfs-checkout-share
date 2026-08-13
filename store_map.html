@@ -25,7 +25,7 @@
   .spacer{flex:1}
   .controls{display:flex;gap:8px;pointer-events:auto}
   .btn{font:inherit;font-size:12.5px;font-weight:600;padding:7px 13px;border-radius:999px;border:1px solid var(--line);
-       background:var(--card);color:var(--ink);cursor:pointer;backdrop-filter:blur(8px);transition:.15s;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+       background:var(--card);color:var(--ink);cursor:pointer;backdrop-filter:blur(8px);transition:.15s;text-decoration:none;display:inline-flex;align-items:center;gap:6px;pointer-events:auto}
   .btn:hover{border-color:var(--purple2)}
   .btn.on{background:var(--purple);border-color:var(--purple);color:#fff}
   .ticker{position:fixed;left:50%;top:15px;transform:translateX(-50%);z-index:5;background:var(--card);border:1px solid var(--line);
@@ -67,6 +67,10 @@
   .ev .ic{width:22px;height:22px;border-radius:6px;flex:none;display:grid;place-items:center;font-size:12px;color:#fff}
   .ev .nm{font-weight:600;font-size:13px} .ev .dt{font-size:11px;color:var(--muted)}
   .ev .ef{margin-left:auto;font-size:12px;font-weight:700}
+  .wxrow{display:flex;gap:6px}
+  .wxday{flex:1;text-align:center;background:#fff;border:1px solid var(--line);border-radius:9px;padding:7px 2px}
+  .wxday .wd{font-size:10px;color:var(--muted)} .wxday .wi{font-size:16px;margin:2px 0}
+  .wxday .wt{font-size:12px;font-weight:700} .wxday .wr{font-size:10px;color:var(--muted)} .wxday .wr.on{color:var(--navy);font-weight:700}
 </style>
 </head>
 <body>
@@ -92,7 +96,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <script>
 const BRAND={Spar:{c:'#0a8a3d',tag:'#0a8a3d',glyph:'S'},SuperValu:{c:'#c8102e',tag:'#c8102e',glyph:'SV'}};
-const EVCOL={holiday:'#d97706',gaa:'#6d28d9',payday:'#1e5da8',event:'#6d28d9'};
+const EVCOL={holiday:'#d97706',gaa:'#6d28d9',payday:'#1e5da8',back_to_school:'#0ea5a4',festival:'#db2777',weather:'#2563eb',event:'#6d28d9'};
+const EVLABEL={holiday:'Holiday',gaa:'GAA',payday:'Pay window',back_to_school:'Back-to-school',festival:'Festival',weather:'Weather'};
+const WMO=c=>c==0?'Clear':c<3?'Partly cloudy':c<50?'Cloudy/fog':c<70?'Rain':c<80?'Snow':'Showers';
 let stores=[], selected=null, rainOn=false, eventsOn=true, bounds=null;
 
 const map=new maplibregl.Map({
@@ -191,19 +197,14 @@ function spanMetres(geom){
 }
 function highlightBuilding(s){
   const b=BRAND[s.brand]||BRAND.Spar;
-  if(!map.getLayer('buildings3d')){return;}
-  // colour the 3D buildings across the store's whole area in its brand colour
-  const c=map.project([s.lon,s.lat]), R=200;
-  let feats=map.queryRenderedFeatures([[c.x-R,c.y-R],[c.x+R,c.y+R]],{layers:['buildings3d']});
-  if(!feats.length && s.footprint) feats=[{geometry:{type:'Polygon',coordinates:s.footprint},properties:{}}];
-  const geo={type:'FeatureCollection',features:feats.map(f=>({type:'Feature',geometry:f.geometry,
-    properties:{h:(f.properties&&f.properties.render_height)||12}}))};
+  // highlight THIS one store's real OSM building footprint in its brand colour
+  const geo={type:'FeatureCollection',features: s.footprint?[{type:'Feature',
+    geometry:{type:'Polygon',coordinates:s.footprint},properties:{}}]:[]};
   if(map.getSource('sel-bld')){ map.getSource('sel-bld').setData(geo); map.setPaintProperty('sel-bld','fill-extrusion-color',b.c); }
   else{
     map.addSource('sel-bld',{type:'geojson',data:geo});
     map.addLayer({id:'sel-bld',type:'fill-extrusion',source:'sel-bld',
-      paint:{'fill-extrusion-color':b.c,'fill-extrusion-height':['+',['coalesce',['get','h'],12],4],
-        'fill-extrusion-base':0,'fill-extrusion-opacity':.9}});
+      paint:{'fill-extrusion-color':b.c,'fill-extrusion-height':26,'fill-extrusion-base':0,'fill-extrusion-opacity':.95}});
   }
 }
 function clearBuilding(){ if(map.getSource('sel-bld')) map.getSource('sel-bld').setData({type:'FeatureCollection',features:[]}); }
@@ -225,9 +226,9 @@ function buildTicker(){
 function openPanel(s){
   selected=s; const col=BRAND[s.brand]||BRAND.Spar;
   const ev=(s.events||[]).map(e=>{
-    const when=e.date||`${e.start} → ${e.end}`, c=EVCOL[e.type]||EVCOL.event, ic={holiday:'★',gaa:'●',payday:'€',event:'◆'}[e.type]||'◆';
+    const when=e.date||`${e.start} → ${e.end}`, c=EVCOL[e.type]||EVCOL.event, ic=e.icon||'◆';
     return `<div class="ev"><div class="ic" style="background:${c}">${ic}</div>
-      <div><div class="nm">${e.name}</div><div class="dt">${when}</div></div>
+      <div><div class="nm">${e.name}</div><div class="dt">${EVLABEL[e.type]||''} · ${when}</div></div>
       <div class="ef" style="color:${c}">${e.effect_pct!=null?pct(e.effect_pct):''}</div></div>`;
   }).join('')||'<div class="dt" style="color:var(--muted);font-size:12px">No known events in the horizon.</div>';
   document.getElementById('panel').innerHTML=`
@@ -246,11 +247,13 @@ function openPanel(s){
       </div>
       <div class="sec">Demand · recent + 2-week forecast</div>
       <svg id="spark"></svg>
+      <div class="sec">Weather next days · live</div>
+      <div id="wx" class="wx"><div class="dt" style="color:var(--muted);font-size:12px">Loading Met forecast…</div></div>
       <div class="sec">What can move demand</div>
       <div class="rowline"><span class="k">Public holiday effect</span><b>${pct(s.holiday_effect_pct)}</b></div>
       <div class="rowline"><span class="k">Wet-day effect</span><b>${pct(s.weather.wet_effect_pct)}</b></div>
       <div class="rowline"><span class="k">Sunny-day effect</span><b>${pct(s.weather.sunny_effect_pct)}</b></div>
-      <div class="sec">Coming up</div>${ev}
+      <div class="sec">Nearby events &amp; effect</div>${ev}
       <div class="sec">Operations</div>
       <div class="rowline"><span class="k">Forecast accuracy (MASE)</span><b>${s.median_mase??'–'}</b></div>
       <div class="rowline"><span class="k">Unusual days flagged</span><b>${fmt(s.n_unusual_days)}</b></div>
@@ -259,6 +262,29 @@ function openPanel(s){
     </div>`;
   document.getElementById('panel').classList.add('open');
   drawSpark(s);
+  fetchWeather(s);
+}
+function fetchWeather(s){
+  const el=document.getElementById('wx'); if(!el)return;
+  fetch(`https://api.open-meteo.com/v1/forecast?latitude=${s.lat}&longitude=${s.lon}&daily=precipitation_sum,temperature_2m_max,weather_code&forecast_days=6&timezone=Europe/Dublin`)
+    .then(r=>r.json()).then(d=>{
+      const D=d.daily; if(!D){el.innerHTML='<div class="dt">No forecast.</div>';return;}
+      let html='<div class="wxrow">';
+      for(let i=0;i<Math.min(6,D.time.length);i++){
+        const day=new Date(D.time[i]+'T00:00:00').toLocaleDateString('en-IE',{weekday:'short'});
+        const rain=D.precipitation_sum[i], tmax=Math.round(D.temperature_2m_max[i]), code=D.weather_code[i], wet=rain>=1;
+        const ic=code==0?'☀':code<3?'⛅':wet?'🌧':'☁';
+        html+=`<div class="wxday"><div class="wd">${day}</div><div class="wi">${ic}</div><div class="wt">${tmax}°</div><div class="wr ${wet?'on':''}">${rain.toFixed(1)}</div></div>`;
+      }
+      html+='</div>';
+      const wettest=Math.max(...D.precipitation_sum.slice(0,3));
+      if(wettest>=2 && s.weather.wet_effect_pct!=null)
+        html+=`<div class="dt" style="margin-top:6px">Wet days ahead → about <b style="color:${EVCOL.weather}">${pct(s.weather.wet_effect_pct)}</b> demand on those days.</div>`;
+      else if(s.weather.sunny_effect_pct!=null)
+        html+=`<div class="dt" style="margin-top:6px">Mostly dry → a sunny day adds about <b style="color:#d97706">${pct(s.weather.sunny_effect_pct)}</b>.</div>`;
+      el.innerHTML=html;
+      if(wettest>=2 && !rainOn){rainOn=true;document.getElementById('btn-weather').classList.add('on');}
+    }).catch(()=>{el.innerHTML='<div class="dt" style="color:var(--muted)">Live weather unavailable.</div>';});
 }
 function closePanel(){document.getElementById('panel').classList.remove('open');selected=null;clearBuilding();map.easeTo({pitch:0,duration:900});}
 
