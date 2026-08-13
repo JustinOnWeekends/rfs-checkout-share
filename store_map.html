@@ -73,7 +73,7 @@
 <div id="map"></div>
 <canvas id="rain"></canvas>
 <header>
-  <a class="btn" href="./" title="Back to dashboard">← Dashboard</a>
+  <a class="btn" href="index.html" title="Back to dashboard">← Dashboard</a>
   <div class="brand">
     <h1>Donegal store network</h1>
     <div class="sub">RFS Checkout Analytics · real map · live demand, weather & events</div>
@@ -177,8 +177,31 @@ function pulseRings(){
 
 function selectStore(s){
   openPanel(s);
-  map.flyTo({center:[s.lon,s.lat],zoom:15.4,pitch:56,bearing:-18,duration:2400,curve:1.5,essential:true});
+  map.flyTo({center:[s.lon,s.lat],zoom:16.4,pitch:58,bearing:-18,duration:2400,curve:1.5,essential:true});
+  map.once('moveend',()=>{setTimeout(()=>highlightBuilding(s),250);
+    setTimeout(()=>{if(map.getSource('sel-bld')&&!map.getSource('sel-bld')._data.features.length)highlightBuilding(s);},900);});
 }
+// paint the store's actual OSM building in its brand colour ("embedded" on the shop).
+// Only at high zoom, where the building layer holds individual footprints; at low zoom
+// OpenMapTiles merges them into one big tile geometry, which must not be highlighted.
+function spanMetres(geom){
+  const pts=[]; const walk=a=>{typeof a[0]==='number'?pts.push(a):a.forEach(walk);}; walk(geom.coordinates);
+  const lo=pts.map(p=>p[0]),la=pts.map(p=>p[1]);
+  return {n:pts.length, m:Math.max((Math.max(...lo)-Math.min(...lo))*72000,(Math.max(...la)-Math.min(...la))*111000)};
+}
+function highlightBuilding(s){
+  const b=BRAND[s.brand]||BRAND.Spar;
+  // paint the store's REAL OSM building footprint (baked into the data) in brand colour
+  const geo={type:'FeatureCollection',features: s.footprint?[{type:'Feature',
+    geometry:{type:'Polygon',coordinates:s.footprint},properties:{}}]:[]};
+  if(map.getSource('sel-bld')){ map.getSource('sel-bld').setData(geo); map.setPaintProperty('sel-bld','fill-extrusion-color',b.c); }
+  else{
+    map.addSource('sel-bld',{type:'geojson',data:geo});
+    map.addLayer({id:'sel-bld',type:'fill-extrusion',source:'sel-bld',
+      paint:{'fill-extrusion-color':b.c,'fill-extrusion-height':22,'fill-extrusion-base':0,'fill-extrusion-opacity':.92}});
+  }
+}
+function clearBuilding(){ if(map.getSource('sel-bld')) map.getSource('sel-bld').setData({type:'FeatureCollection',features:[]}); }
 
 function buildLegend(){
   document.getElementById('legend').innerHTML=
@@ -207,7 +230,7 @@ function openPanel(s){
       <button class="p-close" onclick="closePanel()">×</button>
       <span class="p-brandtag" style="background:${col.tag}">${s.brand}</span>
       <div class="p-title">${s.store_type} store</div>
-      <div class="p-loc">${s.town}, Co. Donegal · ${s.checkouts} checkouts · representative location</div>
+      <div class="p-loc">${s.real_place||s.town}, Co. Donegal · ${s.checkouts} checkouts · representative branch</div>
     </div>
     <div class="p-body">
       <div class="kpis">
@@ -232,7 +255,7 @@ function openPanel(s){
   document.getElementById('panel').classList.add('open');
   drawSpark(s);
 }
-function closePanel(){document.getElementById('panel').classList.remove('open');selected=null;map.easeTo({pitch:0,duration:900});}
+function closePanel(){document.getElementById('panel').classList.remove('open');selected=null;clearBuilding();map.easeTo({pitch:0,duration:900});}
 
 function drawSpark(s){
   const R=s.spark.recent,F=s.spark.forecast,LO=s.spark.low,HI=s.spark.high;
