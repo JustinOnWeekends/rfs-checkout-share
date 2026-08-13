@@ -191,14 +191,19 @@ function spanMetres(geom){
 }
 function highlightBuilding(s){
   const b=BRAND[s.brand]||BRAND.Spar;
-  // paint the store's REAL OSM building footprint (baked into the data) in brand colour
-  const geo={type:'FeatureCollection',features: s.footprint?[{type:'Feature',
-    geometry:{type:'Polygon',coordinates:s.footprint},properties:{}}]:[]};
+  if(!map.getLayer('buildings3d')){return;}
+  // colour the 3D buildings across the store's whole area in its brand colour
+  const c=map.project([s.lon,s.lat]), R=200;
+  let feats=map.queryRenderedFeatures([[c.x-R,c.y-R],[c.x+R,c.y+R]],{layers:['buildings3d']});
+  if(!feats.length && s.footprint) feats=[{geometry:{type:'Polygon',coordinates:s.footprint},properties:{}}];
+  const geo={type:'FeatureCollection',features:feats.map(f=>({type:'Feature',geometry:f.geometry,
+    properties:{h:(f.properties&&f.properties.render_height)||12}}))};
   if(map.getSource('sel-bld')){ map.getSource('sel-bld').setData(geo); map.setPaintProperty('sel-bld','fill-extrusion-color',b.c); }
   else{
     map.addSource('sel-bld',{type:'geojson',data:geo});
     map.addLayer({id:'sel-bld',type:'fill-extrusion',source:'sel-bld',
-      paint:{'fill-extrusion-color':b.c,'fill-extrusion-height':22,'fill-extrusion-base':0,'fill-extrusion-opacity':.92}});
+      paint:{'fill-extrusion-color':b.c,'fill-extrusion-height':['+',['coalesce',['get','h'],12],4],
+        'fill-extrusion-base':0,'fill-extrusion-opacity':.9}});
   }
 }
 function clearBuilding(){ if(map.getSource('sel-bld')) map.getSource('sel-bld').setData({type:'FeatureCollection',features:[]}); }
