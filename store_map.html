@@ -68,6 +68,10 @@
                 padding:1px 6px;white-space:nowrap;box-shadow:0 1px 5px rgba(30,40,90,.16)}
   .school .slab b{color:#2942b8;font-weight:800}
   .school.ssec .sdot{background:#1e3a8a}.school.ssec .slab b{color:#1e3a8a}
+  /* school names hidden by default (declutter); shown via the Names toggle or by
+     tapping an individual point */
+  .school .sname{display:none}
+  body.names .school .sname,.school.named .sname{display:inline}
   /* festival: a lit-up point that pulses, with its surge % and dates */
   .fest{display:flex;flex-direction:column;align-items:center;cursor:pointer}
   .fest .fdot{width:26px;height:26px;border-radius:50%;background:#db2777;border:3px solid #fff;
@@ -102,6 +106,25 @@
   .wxday{flex:1;text-align:center;background:#fff;border:1px solid var(--line);border-radius:9px;padding:7px 2px}
   .wxday .wd{font-size:10px;color:var(--muted)} .wxday .wi{font-size:16px;margin:2px 0}
   .wxday .wt{font-size:12px;font-weight:700} .wxday .wr{font-size:10px;color:var(--muted)} .wxday .wr.on{color:var(--navy);font-weight:700}
+  /* ---------- phones ---------- */
+  @media (max-width:640px){
+    header{padding:8px 10px;gap:8px;flex-wrap:wrap;align-items:flex-start}
+    header h1{font-size:15px} header .sub{display:none}
+    .spacer{display:none}
+    .controls{order:3;width:100%;flex-wrap:wrap;gap:6px;margin-top:2px}
+    .btn{padding:6px 11px;font-size:11.5px}
+    .ticker{display:none}                 /* upcoming events live on the map + in the panel */
+    .legend{left:8px;right:8px;bottom:8px;justify-content:center;gap:7px 11px;padding:7px 9px;
+            font-size:10.5px;max-height:34vh;overflow:auto}
+    .foot{display:none}                   /* full provenance note stays in the store panel */
+    /* store panel becomes a bottom sheet */
+    #panel{top:auto;bottom:0;left:0;right:0;width:100%;max-width:100%;height:auto;max-height:88vh;
+           border-left:none;border-top:1px solid var(--line);border-radius:16px 16px 0 0;
+           transform:translateY(105%);box-shadow:0 -14px 44px rgba(60,40,120,.18)}
+    .p-head{padding:14px 16px 10px} .p-title{font-size:19px} .p-body{padding-bottom:24px}
+    .maplibregl-ctrl-bottom-right{bottom:44vh}   /* lift zoom controls clear of the sheet */
+  }
+  @media (max-width:400px){ .controls{gap:5px} .btn{padding:6px 9px;font-size:11px} }
 </style>
 </head>
 <body>
@@ -117,6 +140,7 @@
   <div class="controls">
     <button class="btn" id="btn-weather">☔ Rain</button>
     <button class="btn on" id="btn-events">◎ Events</button>
+    <button class="btn" id="btn-names">🏷 Names</button>
     <button class="btn" id="btn-fit">⤢ Fit county</button>
   </div>
 </header>
@@ -224,9 +248,10 @@ fetch('./data/stores.json?v='+Date.now()).then(r=>r.json()).then(d=>{
     // REAL nearby schools inside the ring: a point on each, with its proximity surge %
     s._schoolMarkers=(s.schools||[]).map(sc=>{
       const el=document.createElement('div'); el.className='school'+(sc.level==='secondary'?' ssec':'');
-      el.innerHTML=`<span class="sdot">✎</span><span class="slab">${shortSchool(sc.name)} <b>+${sc.surge_pct}%</b></span>`;
+      el.innerHTML=`<span class="sdot">✎</span><span class="slab"><span class="sname">${shortSchool(sc.name)}</span><b>+${sc.surge_pct}%</b></span>`;
       el.title=`${sc.name} — reopens ${fmtDate(sc.reopen_date)} · ${sc.dist_km} km from store · est. +${sc.surge_pct}% back-to-school lift`;
-      el.addEventListener('click',()=>selectStore(s));
+      // tap a point to reveal/hide just its name (works even when the Names toggle is off)
+      el.addEventListener('click',ev=>{ev.stopPropagation();el.classList.toggle('named');});
       return new maplibregl.Marker({element:el,anchor:'left'}).setLngLat([sc.lon,sc.lat]).addTo(map);
     });
     // festival lit up as a point, with surge % and dates (Spar only, illustrative)
@@ -380,6 +405,7 @@ function openPanel(s){
       <div class="rowline"><span class="k">Unusual days flagged</span><b>${fmt(s.n_unusual_days)}</b></div>
       <div class="rowline"><span class="k">Over / under staffed lane-hrs</span><b>${fmt(s.over_lane_hours)} / ${fmt(s.under_lane_hours)}</b></div>
       <div class="rowline"><span class="k">Mis-staffing cost</span><b>€${fmt(s.mis_staffing_cost)}</b></div>
+      <div class="dt" style="color:var(--muted);font-size:10.5px;margin-top:16px;line-height:1.5">${(document.getElementById('foot')||{}).textContent||''}</div>
     </div>`;
   document.getElementById('panel').classList.add('open');
   drawSpark(s);
@@ -437,6 +463,9 @@ rain();
 
 document.getElementById('btn-weather').onclick=e=>{rainOn=!rainOn;e.target.classList.toggle('on',rainOn);};
 document.getElementById('btn-events').onclick=e=>{eventsOn=!eventsOn;e.target.classList.toggle('on',eventsOn);};
+document.getElementById('btn-names').onclick=e=>{const on=document.body.classList.toggle('names');
+  e.currentTarget.classList.toggle('on',on);
+  if(on)document.querySelectorAll('.school.named').forEach(el=>el.classList.remove('named'));};
 document.getElementById('btn-fit').onclick=()=>{closePanel();fitToStores(false);};
 </script>
 </body>
