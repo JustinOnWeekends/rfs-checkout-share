@@ -56,6 +56,21 @@
   .evbadge .ed{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;vertical-align:0}
   .evbadge.urgent{animation:evp 1.3s infinite}
   @keyframes evp{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+  /* nearby back-to-school driver: a small dot on the real school, with its surge % */
+  .school{display:flex;align-items:center;gap:4px;cursor:pointer;transition:transform .15s;transform-origin:left center}
+  .school:hover{transform:scale(1.12)}
+  .school .sdot{width:15px;height:15px;border-radius:50%;background:#3b5bdb;border:2px solid #fff;
+                box-shadow:0 2px 6px rgba(30,40,90,.35);display:grid;place-items:center;font-size:8px;color:#fff;flex:none}
+  .school .spct{font-size:10px;font-weight:800;color:#2942b8;background:rgba(255,255,255,.9);
+                border-radius:5px;padding:0 3px;box-shadow:0 1px 4px rgba(30,40,90,.18);white-space:nowrap}
+  .school.sec .sdot{background:#1e3a8a}.school.sec .spct{color:#1e3a8a}
+  /* festival: a lit-up point that pulses, with its surge % and dates */
+  .fest{display:flex;flex-direction:column;align-items:center;cursor:pointer}
+  .fest .fdot{width:26px;height:26px;border-radius:50%;background:#db2777;border:3px solid #fff;
+              display:grid;place-items:center;font-size:13px;box-shadow:0 0 0 0 rgba(219,39,119,.55);animation:festglow 1.8s infinite}
+  .fest .flab{margin-top:3px;background:#db2777;color:#fff;font-size:10.5px;font-weight:800;border-radius:7px;
+              padding:1px 7px;white-space:nowrap;box-shadow:0 3px 10px rgba(219,39,119,.35)}
+  @keyframes festglow{0%{box-shadow:0 0 0 0 rgba(219,39,119,.5)}70%{box-shadow:0 0 0 14px rgba(219,39,119,0)}100%{box-shadow:0 0 0 0 rgba(219,39,119,0)}}
   /* side panel (unchanged look) */
   #panel{position:fixed;top:0;right:0;height:100%;width:390px;max-width:92vw;z-index:7;transform:translateX(105%);
          transition:transform .32s cubic-bezier(.4,0,.15,1);background:rgba(255,255,255,.9);backdrop-filter:blur(16px);
@@ -136,6 +151,10 @@ map.on('style.load',()=>{
 
 const fmt=v=>v==null?'–':d3.format(',')(Math.round(v));
 const pct=v=>v==null?'–':(v>0?'+':'')+v+'%';
+const fmtDate=d=>!d?'–':new Date(d+'T00:00:00').toLocaleDateString('en-IE',{day:'numeric',month:'short'});
+const fmtRange=(a,b)=>{const A=new Date(a+'T00:00:00'),B=new Date(b+'T00:00:00');
+  const dm={day:'numeric',month:'short'};
+  return A.getMonth()===B.getMonth()?`${A.getDate()}–${B.toLocaleDateString('en-IE',dm)}`:`${A.toLocaleDateString('en-IE',dm)}–${B.toLocaleDateString('en-IE',dm)}`;};
 
 // geographic circle polygon (km) for event radius
 function circle(lng,lat,km,n=64){
@@ -154,7 +173,7 @@ function daysUntil(e){
 }
 const relLabel=n=>n===0?'happening now':n===1?'tomorrow':`in ${n} days`;
 
-fetch('./data/stores.json').then(r=>r.json()).then(d=>{
+fetch('./data/stores.json?v='+Date.now()).then(r=>r.json()).then(d=>{
   stores=d.stores;
   document.getElementById('foot').textContent=d.disclaimer;
   buildLegend();
@@ -177,20 +196,40 @@ fetch('./data/stores.json').then(r=>r.json()).then(d=>{
     wrap.addEventListener('click',()=>selectStore(s));
     s._marker=new maplibregl.Marker({element:wrap,anchor:'bottom'}).setLngLat([s.lon,s.lat]).addTo(map);
     bounds.extend([s.lon,s.lat]);
+    // catchment ring — ALWAYS drawn for every store (this is the store's radius).
+    // Coloured by the nearest upcoming event if there is one, else a neutral catchment tone.
+    const ringCol = s._top ? (EVCOL[s._top.e.type]||EVCOL.event) : '#64748b';
+    const src='ring-'+s.key, km=s.radius_km||3.4;
+    const add=()=>addRing(src,circle(s.lon,s.lat,km),ringCol);
+    if(map.isStyleLoaded()) add(); else { map.on('style.load',add); map.on('load',add); }
+    s._ring=src; s._ringcol=ringCol;
+    s._urgency=s._top?Math.max(0.3,1-Math.min(s._top.n,30)/30):0.5;   // closer event = stronger ring
     // event badge ON THE MAP: nearest upcoming event, with countdown + effect (priority)
     if(s._top){
-      const e=s._top.e, c=EVCOL[e.type]||EVCOL.event, urgent=s._top.n<=7;
+      const e=s._top.e, c=ringCol, urgent=s._top.n<=7;
       const el=document.createElement('div'); el.className='evbadge'+(urgent?' urgent':'');
       el.style.setProperty('--c',c);
       el.innerHTML=`<span class="ed" style="background:${c}"></span>${e.icon||'◆'} ${EVLABEL[e.type]||''} · ${relLabel(s._top.n)}`+
         (e.effect_pct!=null?` · <b style="color:${c}">${pct(e.effect_pct)}</b>`:'');
       el.title=e.name; el.addEventListener('click',()=>selectStore(s));
       s._evmarker=new maplibregl.Marker({element:el,anchor:'bottom',offset:[0,-42]}).setLngLat([s.lon,s.lat]).addTo(map);
-      // radius ring coloured by the nearest upcoming event; closer = tighter + stronger
-      const src='ring-'+s.key, km=3.4;
-      const add=()=>addRing(src,circle(s.lon,s.lat,km),c);
-      map.on('load',add); if(map.isStyleLoaded()) add();
-      s._ring=src; s._ringcol=c; s._urgency=Math.max(0.15,1-Math.min(s._top.n,30)/30); // 1=today .. ~0 far
+    }
+    // REAL nearby schools inside the ring: a point on each, with its proximity surge %
+    s._schoolMarkers=(s.schools||[]).map(sc=>{
+      const el=document.createElement('div'); el.className='school'+(sc.level==='secondary'?' sec':'');
+      el.innerHTML=`<span class="sdot">✎</span><span class="spct">+${sc.surge_pct}%</span>`;
+      el.title=`${sc.name} — reopens ${fmtDate(sc.reopen_date)} · ${sc.dist_km} km from store · est. +${sc.surge_pct}% back-to-school lift`;
+      el.addEventListener('click',()=>selectStore(s));
+      return new maplibregl.Marker({element:el,anchor:'left'}).setLngLat([sc.lon,sc.lat]).addTo(map);
+    });
+    // festival lit up as a point, with surge % and dates (Spar only, illustrative)
+    if(s.festival){
+      const f=s.festival;
+      const el=document.createElement('div'); el.className='fest';
+      el.innerHTML=`<span class="fdot">♪</span><span class="flab">Festival · +${f.effect_pct}% · ${fmtRange(f.start,f.end)}</span>`;
+      el.title=`${f.name} — ${f.venue} · ${fmtDate(f.start)}–${fmtDate(f.end)} · est. +${f.effect_pct}% surge`;
+      el.addEventListener('click',()=>selectStore(s));
+      s._festMarker=new maplibregl.Marker({element:el,anchor:'top'}).setLngLat([f.lon,f.lat]).addTo(map);
     }
   });
   buildTicker();
@@ -226,13 +265,15 @@ function pulseRings(){
     map.setPaintProperty(s._ring+'-l','line-opacity', eventsOn?(0.08+0.6*(1-t))*u+0.04:0);
     map.setPaintProperty(s._ring+'-f','fill-opacity', eventsOn?(0.02+0.12*(1-t))*u:0);
     if(s._evmarker) s._evmarker.getElement().style.opacity=eventsOn?1:0;
+    (s._schoolMarkers||[]).forEach(m=>m.getElement().style.opacity=eventsOn?1:0);
+    if(s._festMarker) s._festMarker.getElement().style.opacity=eventsOn?1:0;
   }});
   requestAnimationFrame(pulseRings);
 }
 
 function selectStore(s){
   openPanel(s);
-  map.flyTo({center:[s.lon,s.lat],zoom:16.4,pitch:58,bearing:-18,duration:2400,curve:1.5,essential:true});
+  map.flyTo({center:[s.lon,s.lat],zoom:15.4,pitch:56,bearing:-18,duration:2400,curve:1.5,essential:true});
   map.once('moveend',()=>{setTimeout(()=>highlightBuilding(s),250);
     setTimeout(()=>{if(map.getSource('sel-bld')&&!map.getSource('sel-bld')._data.features.length)highlightBuilding(s);},900);});
 }
@@ -262,14 +303,17 @@ function buildLegend(){
   document.getElementById('legend').innerHTML=
     `<span><span class="sw" style="background:${BRAND.Spar.c}"></span><b>Spar</b></span>
      <span><span class="sw" style="background:${BRAND.SuperValu.c}"></span><b>SuperValu</b></span>
-     <span><span class="sw" style="background:${EVCOL.holiday}"></span>Holiday</span>
-     <span><span class="sw" style="background:${EVCOL.gaa}"></span>GAA window</span>
-     <span><span class="sw" style="background:${EVCOL.payday}"></span>Pay window</span>
+     <span><span class="sw" style="background:#3b5bdb"></span>School (back-to-school)</span>
+     <span><span class="sw" style="background:#db2777"></span>Festival</span>
+     <span><span class="sw" style="background:${EVCOL.back_to_school}"></span>Catchment radius</span>
      <span style="color:var(--muted)">Real OpenStreetMap · click a store</span>`;
 }
 function buildTicker(){
   // nearest upcoming event per store, ordered by how close it is to today (priority)
-  const items=stores.filter(s=>s._top).map(s=>({town:s.town,e:s._top.e,n:s._top.n})).sort((a,b)=>a.n-b.n)
+  const rows=stores.filter(s=>s._top).map(s=>({town:s.town,e:s._top.e,n:s._top.n}));
+  stores.filter(s=>s.festival).forEach(s=>rows.push({town:s.town,
+    e:{name:s.festival.name,effect_pct:s.festival.effect_pct},n:daysUntil({start:s.festival.start,end:s.festival.end})}));
+  const items=rows.filter(x=>x.n>=0).sort((a,b)=>a.n-b.n)
     .map(x=>`${x.town}: ${x.e.name} ${relLabel(x.n)}${x.e.effect_pct!=null?' '+pct(x.e.effect_pct):''}`);
   document.getElementById('ticker-txt').textContent=items.length?('Next up · '+items.join('   ·   ')):'No upcoming events';
 }
@@ -282,6 +326,23 @@ function openPanel(s){
       <div><div class="nm">${e.name}</div><div class="dt">${EVLABEL[e.type]||''} · ${when}</div></div>
       <div class="ef" style="color:${c}">${e.effect_pct!=null?pct(e.effect_pct):''}</div></div>`;
   }).join('')||'<div class="dt" style="color:var(--muted);font-size:12px">No known events in the horizon.</div>';
+  // festival nearby (illustrative), lit as its own block
+  const fest = s.festival ? `
+      <div class="sec">Festival nearby</div>
+      <div class="ev"><div class="ic" style="background:#db2777">♪</div>
+        <div><div class="nm">${s.festival.name}</div>
+          <div class="dt">${s.festival.venue} · ${fmtDate(s.festival.start)}–${fmtDate(s.festival.end)}</div></div>
+        <div class="ef" style="color:#db2777">+${s.festival.effect_pct}%</div></div>
+      <div class="dt" style="color:var(--muted);font-size:11px;margin-top:2px">Illustrative nearby event; surge estimated from event-day analysis.</div>` : '';
+  // real nearby schools, nearest first (closer = bigger back-to-school lift)
+  const schools = (s.schools||[]).length ? (s.schools||[]).map(sc=>`
+      <div class="rowline"><span class="k">✎ ${sc.name}
+        <span style="color:var(--muted);font-weight:400">· reopens ${fmtDate(sc.reopen_date)} · ${sc.dist_km} km</span></span>
+        <b style="color:#2942b8">+${sc.surge_pct}%</b></div>`).join('')
+      : '<div class="dt" style="color:var(--muted);font-size:12px">No schools mapped inside the catchment.</div>';
+  const schoolsSec = `
+      <div class="sec">Back-to-school · nearby schools <span style="color:var(--muted);font-weight:400;font-size:11px">— real OSM, closer = bigger lift</span></div>
+      ${schools}`;
   document.getElementById('panel').innerHTML=`
     <div class="p-head">
       <button class="p-close" onclick="closePanel()">×</button>
@@ -304,6 +365,8 @@ function openPanel(s){
       <div class="rowline"><span class="k">Public holiday effect</span><b>${pct(s.holiday_effect_pct)}</b></div>
       <div class="rowline"><span class="k">Wet-day effect</span><b>${pct(s.weather.wet_effect_pct)}</b></div>
       <div class="rowline"><span class="k">Sunny-day effect</span><b>${pct(s.weather.sunny_effect_pct)}</b></div>
+      ${fest}
+      ${schoolsSec}
       <div class="sec">Nearby events &amp; effect</div>${ev}
       <div class="sec">Operations</div>
       <div class="rowline"><span class="k">Forecast accuracy (MASE)</span><b>${s.median_mase??'–'}</b></div>
