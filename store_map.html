@@ -39,10 +39,14 @@
         background:var(--card);border:1px solid var(--line);border-radius:9px;padding:6px 9px;backdrop-filter:blur(8px)}
   /* branded store location pin: round head + downward tip sitting on the building */
   .pinwrap{position:relative;display:flex;flex-direction:column;align-items:center;cursor:pointer}
-  .pinhead{width:34px;height:34px;border-radius:50%;background:var(--c);border:3px solid #fff;
-           display:grid;place-items:center;box-shadow:0 5px 14px rgba(50,30,90,.35);transition:transform .15s}
-  .pinwrap:hover .pinhead{transform:scale(1.14)}
-  .pinhead span{font-size:13px;font-weight:800;color:#fff;font-family:'Sora'}
+  .pinhead{background:var(--c);border:3px solid #fff;display:grid;place-items:center;
+           box-shadow:0 5px 14px rgba(50,30,90,.35);transition:transform .15s}
+  .pinhead.round{width:36px;height:36px;border-radius:50%}
+  .pinhead.wide{height:26px;padding:0 10px;border-radius:15px}
+  .pinwrap:hover .pinhead{transform:scale(1.12)}
+  .pinhead .spar-fir{width:23px;height:23px;display:block}
+  .pinhead .wm-sv{font-family:'Plus Jakarta Sans','Sora',sans-serif;font-weight:800;font-size:12.5px;
+                  color:#fff;letter-spacing:-.2px;line-height:1;white-space:nowrap}
   .pintip{width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;
           border-top:12px solid var(--c);margin-top:-2px;filter:drop-shadow(0 3px 2px rgba(50,30,90,.28))}
   .pinlab{position:absolute;top:-22px;left:50%;transform:translateX(-50%);background:#fff;border:1px solid var(--line);
@@ -103,7 +107,7 @@
 <aside id="panel"></aside>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <script>
-const BRAND={Spar:{c:'#0a8a3d',tag:'#0a8a3d',glyph:'S'},SuperValu:{c:'#c8102e',tag:'#c8102e',glyph:'SV'}};
+const BRAND={Spar:{c:'#0a8a3d',tag:'#0a8a3d',glyph:'S'},SuperValu:{c:'#8a1c3f',tag:'#8a1c3f',glyph:'SV'}};
 const EVCOL={holiday:'#d97706',gaa:'#6d28d9',payday:'#1e5da8',back_to_school:'#0ea5a4',festival:'#db2777',weather:'#2563eb',event:'#6d28d9'};
 const EVLABEL={holiday:'Holiday',gaa:'GAA',payday:'Pay window',back_to_school:'Back-to-school',festival:'Festival',weather:'Weather'};
 const WMO=c=>c==0?'Clear':c<3?'Partly cloudy':c<50?'Cloudy/fog':c<70?'Rain':c<80?'Snow':'Showers';
@@ -163,7 +167,11 @@ fetch('./data/stores.json').then(r=>r.json()).then(d=>{
     // store marker: town label + teardrop pin
     const wrap=document.createElement('div'); wrap.className='pinwrap'; wrap.style.setProperty('--c', b.c);
     const lab=document.createElement('div'); lab.className='pinlab'; lab.textContent=s.town; wrap.appendChild(lab);
-    const head=document.createElement('div'); head.className='pinhead'; head.innerHTML=`<span>${b.glyph}</span>`; wrap.appendChild(head);
+    const head=document.createElement('div'); head.className='pinhead '+(s.brand==='SuperValu'?'wide':'round');
+    head.innerHTML = s.brand==='SuperValu'
+      ? `<span class="wm-sv">SuperValu</span>`
+      : `<svg class="spar-fir" viewBox="0 0 64 64" aria-hidden="true"><path fill="#fff" d="M32 9 L49 45 H37 V55 H27 V45 H15 Z"/></svg>`;
+    wrap.appendChild(head);
     const tip=document.createElement('div'); tip.className='pintip'; wrap.appendChild(tip);
     wrap.title=`${s.brand} · ${s.town} — click for analytics`;
     wrap.addEventListener('click',()=>selectStore(s));
