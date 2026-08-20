@@ -56,14 +56,18 @@
   .evbadge .ed{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;vertical-align:0}
   .evbadge.urgent{animation:evp 1.3s infinite}
   @keyframes evp{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
-  /* nearby back-to-school driver: a small dot on the real school, with its surge % */
-  .school{display:flex;align-items:center;gap:4px;cursor:pointer;transition:transform .15s;transform-origin:left center}
-  .school:hover{transform:scale(1.12)}
-  .school .sdot{width:15px;height:15px;border-radius:50%;background:#3b5bdb;border:2px solid #fff;
-                box-shadow:0 2px 6px rgba(30,40,90,.35);display:grid;place-items:center;font-size:8px;color:#fff;flex:none}
-  .school .spct{font-size:10px;font-weight:800;color:#2942b8;background:rgba(255,255,255,.9);
-                border-radius:5px;padding:0 3px;box-shadow:0 1px 4px rgba(30,40,90,.18);white-space:nowrap}
-  .school.sec .sdot{background:#1e3a8a}.school.sec .spct{color:#1e3a8a}
+  /* nearby back-to-school driver: a dot ON the real school, with its name + surge %.
+     No transform/transition on the marker ROOT, so it stays locked to the ground while
+     panning (only the inner dot scales on hover). */
+  .school{display:flex;align-items:center;gap:4px;cursor:pointer}
+  .school .sdot{width:16px;height:16px;border-radius:50%;background:#3b5bdb;border:2px solid #fff;
+                box-shadow:0 2px 6px rgba(30,40,90,.35);display:grid;place-items:center;font-size:8px;color:#fff;flex:none;transition:transform .15s}
+  .school:hover .sdot{transform:scale(1.18)}
+  .school .slab{display:flex;align-items:center;gap:4px;font-size:10px;font-weight:700;color:#26324d;
+                background:rgba(255,255,255,.93);border:1px solid rgba(30,40,90,.12);border-radius:6px;
+                padding:1px 6px;white-space:nowrap;box-shadow:0 1px 5px rgba(30,40,90,.16)}
+  .school .slab b{color:#2942b8;font-weight:800}
+  .school.ssec .sdot{background:#1e3a8a}.school.ssec .slab b{color:#1e3a8a}
   /* festival: a lit-up point that pulses, with its surge % and dates */
   .fest{display:flex;flex-direction:column;align-items:center;cursor:pointer}
   .fest .fdot{width:26px;height:26px;border-radius:50%;background:#db2777;border:3px solid #fff;
@@ -152,6 +156,9 @@ map.on('style.load',()=>{
 const fmt=v=>v==null?'–':d3.format(',')(Math.round(v));
 const pct=v=>v==null?'–':(v>0?'+':'')+v+'%';
 const fmtDate=d=>!d?'–':new Date(d+'T00:00:00').toLocaleDateString('en-IE',{day:'numeric',month:'short'});
+// compact school name for the on-map label (full name stays in the tooltip + panel)
+const shortSchool=n=>n.replace(/National School/gi,'NS').replace(/Secondary School/gi,'Sec. School')
+  .replace(/Community School/gi,'Comm. School').replace(/^Saint /i,'St ').replace(/ Letterkenny$/,'');
 const fmtRange=(a,b)=>{const A=new Date(a+'T00:00:00'),B=new Date(b+'T00:00:00');
   const dm={day:'numeric',month:'short'};
   return A.getMonth()===B.getMonth()?`${A.getDate()}–${B.toLocaleDateString('en-IE',dm)}`:`${A.toLocaleDateString('en-IE',dm)}–${B.toLocaleDateString('en-IE',dm)}`;};
@@ -216,8 +223,8 @@ fetch('./data/stores.json?v='+Date.now()).then(r=>r.json()).then(d=>{
     }
     // REAL nearby schools inside the ring: a point on each, with its proximity surge %
     s._schoolMarkers=(s.schools||[]).map(sc=>{
-      const el=document.createElement('div'); el.className='school'+(sc.level==='secondary'?' sec':'');
-      el.innerHTML=`<span class="sdot">✎</span><span class="spct">+${sc.surge_pct}%</span>`;
+      const el=document.createElement('div'); el.className='school'+(sc.level==='secondary'?' ssec':'');
+      el.innerHTML=`<span class="sdot">✎</span><span class="slab">${shortSchool(sc.name)} <b>+${sc.surge_pct}%</b></span>`;
       el.title=`${sc.name} — reopens ${fmtDate(sc.reopen_date)} · ${sc.dist_km} km from store · est. +${sc.surge_pct}% back-to-school lift`;
       el.addEventListener('click',()=>selectStore(s));
       return new maplibregl.Marker({element:el,anchor:'left'}).setLngLat([sc.lon,sc.lat]).addTo(map);
